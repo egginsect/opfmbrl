@@ -9,6 +9,7 @@ from autograd.scipy.misc import logsumexp
 
 from autograd.optimizers import adam
 from rnn import sigmoid, concat_and_multiply, rnn_predict, create_rnn_params
+from gru import init_gru_params
 
 import autograd.scipy.stats.norm as norm
 from vae import diag_gaussian_log_density, sample_diag_gaussian, \
@@ -38,7 +39,7 @@ def createDKFparams(dataDims, hiddenDims, param_scale=0.01):
     params['rnn'] = create_rnn_params(sum(dataDims.values()), hiddenDims['rnn']*2, hiddenDims['rnn'])
     params['emission'] = init_net_params(param_scale, (hiddenDims['rnn'], hiddenDims['emission'][0],
                                                        hiddenDims['emission'][1], dataDims['x']*2))
-    params['transion'] = None
+    params['transion'] = init_gru_params(hiddenDims['rnn']+dataDims['u']+dataDims['a'], hiddenDims['rnn'], hiddenDims['rnn'])
     params['policy'] = init_net_params(param_scale, (hiddenDims['rnn']+dataDims['x'], hiddenDims['policy'][0],
                                                        hiddenDims['policy'][1], dataDims['a']*2))
     return params

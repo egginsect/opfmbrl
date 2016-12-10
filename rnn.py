@@ -19,7 +19,8 @@ def sigmoid(x):
     return 0.5*(np.tanh(x) + 1.0)   # Output ranges from 0 to 1.
 
 def concat_and_multiply(weights, *args):
-    tmp=np.ones((args[0].shape[0], 1))
+    tmp = np.ones((args[0].shape[0], 1))
+    tmp1 = np.hstack(args + (np.ones((args[0].shape[0], 1)),))
     cat_state = np.hstack(args + (np.ones((args[0].shape[0], 1)),))
     return np.dot(cat_state, weights)
 
