@@ -23,7 +23,7 @@ def unpack_gaussian_params(params):
     mean, log_std = params[:, :D], params[:, D:]
     return mean, log_std
 
-def sample_diag_gaussian(mean, log_std, rs):
+def sample_diag_gaussian(mean, log_std, rs=npr.RandomState(0)):
     return rs.randn(*mean.shape) * np.exp(log_std) + mean
 
 def bernoulli_log_density(targets, unnormalized_logprobs):
