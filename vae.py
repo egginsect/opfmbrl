@@ -18,7 +18,7 @@ def diag_gaussian_log_density(x, mu, log_std):
     return np.sum(norm.logpdf(x, mu, np.exp(log_std)), axis=-1)
 
 def unpack_gaussian_params(params):
-    # Params of a diagonal Gaussian.
+    # Params of a diagonal cGaussian.
     D = np.shape(params)[-1] / 2
     mean, log_std = params[:, :D], params[:, D:]
     return mean, log_std
@@ -45,13 +45,13 @@ def batch_normalize(activations):
     mbmean = np.mean(activations, axis=0, keepdims=True)
     return (activations - mbmean) / (np.std(activations, axis=0, keepdims=True) + 1)
 
-def neural_net_predict(params, inputs):
+def neural_net_predict(params, inputs, activation=relu):
     """Params is a list of (weights, bias) tuples.
        inputs is an (N x D) matrix.
        Applies batch normalization to every layer but the last."""
     for W, b in params[:-1]:
         outputs = batch_normalize(np.dot(inputs, W) + b)  # linear transformation
-        inputs = relu(outputs)                            # nonlinear transformation
+        inputs = activation(outputs)                            # nonlinear transformation
     outW, outb = params[-1]
     outputs = np.dot(inputs, outW) + outb
     return outputs

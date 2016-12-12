@@ -21,17 +21,26 @@ def likelihood_mean_field(emitparams, latents, data):
     p_mean, p_log_std = nn_predict_gaussian(emitparams, latents)
     return diag_gaussian_log_density(data, p_mean, p_log_std)
 
-def getRNNLatentState(params, data):
+softplus = lambda x: np.log(1/np.exp(x))
+
+def getRNNLatentState(params, data, withSoftPlus=False):
     def update_rnn(input, hiddens):
         return np.tanh(concat_and_multiply(params['rnn']['change'], input, hiddens))
     inputs = np.concatenate(data.values(), axis=2)
     num_sequences = inputs.shape[1]
     hiddens = np.repeat(params['rnn']['init hiddens'], num_sequences, axis=0)
-    output = [(hiddens[:,:hiddens.shape[1]/2], hiddens[:,hiddens.shape[1]/2:])]
-
+    def computeMuSigma(hiddens, withSoftPlus):
+        if withSoftPlus:
+            #With softplus, output mu and sigma
+            return softplus(neural_net_predict(params['rnn']['mu'], hiddens)), \
+                   softplus(neural_net_predict(params['rnn']['sigma'], hiddens))
+        else:
+            #without softplus, split hiddent state to mu and logstd
+            return hiddens[:,:hiddens.shape[1]/2], hiddens[:,hiddens.shape[1]/2:]
+    output = [computeMuSigma(hiddens, withSoftPlus)]
     for input in inputs:  # Iterate over time steps.
         hiddens = update_rnn(input, hiddens)
-        output.append((hiddens[:,:hiddens.shape[1]/2], hiddens[:,hiddens.shape[1]/2:]))
+        output.append(computeMuSigma(hiddens, withSoftPlus))
     return zip(*output)
 
 def getGRUTranstionDist(params, data):
@@ -70,8 +79,6 @@ def createDKFparams(dataDims, hiddenDims, param_scale=0.01):
 def computeTemporalKL(q_means, q_log_stds, p_means, p_log_stds):
     def KLgaussian(q_mean, q_log_std, p_mean, p_log_std):
         mu_diff = p_mean-q_mean
-        tmp=np.exp(q_log_std)/np.exp(p_log_std)
-        tmp2 = logsumexp(p_log_std, axis=1)-logsumexp(q_log_std, axis=1)
         return (logsumexp(p_log_std, axis=1)-logsumexp(q_log_std, axis=1)-1
                 +np.sum(np.exp(q_log_std)/np.exp(p_log_std), axis=1)
                 +np.sum(mu_diff**2/np.exp(p_log_std), axis=1))
@@ -79,18 +86,24 @@ def computeTemporalKL(q_means, q_log_stds, p_means, p_log_stds):
     return temporalKLs
 
 def emissionDist(params, input, latents):
-    return 0
+    p_meanAndstd = map(nn_predict_gaussian, [params['emission']]*input['x'].shape[0], latents[1:])
+    return map(diag_gaussian_log_density, input['x'], *zip(*p_meanAndstd))
 
 def policyDist(params, input, latents):
-    return 0
-def dkf_lower_bd(params, input, rs):
+    print(type(input))
+    slices = [slice for slice in input['x']]
+    combinedInput = map(np.hstack, zip(slices, latents))
+    p_meanAndstd = map(nn_predict_gaussian, [params['policy']] * input['x'].shape[0], combinedInput)
+    return map(diag_gaussian_log_density, input['a'], *zip(*p_meanAndstd))
+
+def dkf_lower_bd(params, input):
     q_means, q_log_stds = getRNNLatentState(params, input)
     latents = map(sample_diag_gaussian, q_means, q_log_stds)
-    p_means, p_log_stds = getGRUTranstionDist(params, input, rs)
+    p_means, p_log_stds = getGRUTranstionDist(params, input)
     temporalKL = computeTemporalKL(q_means, q_log_stds, p_means, p_log_stds)
     likelihoodx = emissionDist(params, input, latents)
     likelihooda = policyDist(params, input, latents)
-    return map(likelihoodx + likelihooda - temporalKL)
+    return (np.mean(sum(likelihooda)) + np.mean(sum(likelihoodx)) - np.mean(sum(temporalKL)))/input['x'].shape[2]
 
 if __name__ == '__main__':
     with open('powerData.pkl') as f:
@@ -104,14 +117,18 @@ if __name__ == '__main__':
     inputs = {'x':fakeData[:,:,:dataDims['x']], 'u':fakeData[:,:,dataDims['x']:dataDims['x']+dataDims['u']],
               'a':fakeData[:,:,:dataDims['a']]}
     hiddenDims={'rnn':20, 'emission':(10,10), 'policy':(10,10), 'transition':None}
-    rs = npr.RandomState(0)
     params = createDKFparams(dataDims, hiddenDims)
     q_means, q_log_stds = getRNNLatentState(params, inputs)
-    seed = npr.RandomState(0)
     #pdb.set_trace()
-    #latents = sample_diag_gaussian(q_means, q_log_stds)
     p_means, p_log_stds = getGRUTranstionDist(params, inputs)
     latents = map(sample_diag_gaussian, q_means, q_log_stds)
     temporalKL = computeTemporalKL(q_means, q_log_stds, p_means, p_log_stds)
+    bd = dkf_lower_bd(params, inputs)
+    #likelihoodx = emissionDist(params, input, latents)
+    #pdb.set_trace()
+    likelihooda = policyDist(params, inputs, latents)
     pdb.set_trace()
+    out = emissionDist(params, inputs, latents)
+    for item in inputs['x']:
+        print(item.shape)
     print(params)

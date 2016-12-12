@@ -11,7 +11,7 @@ from autograd.scipy.misc import logsumexp
 from os.path import dirname, join
 from builtins import range
 from autograd.optimizers import adam
-
+from vae import init_net_params
 
 ### Helper functions #################
 
@@ -31,7 +31,10 @@ def create_rnn_params(input_size, state_size, output_size,
                       param_scale=0.01, rs=npr.RandomState(0)):
     return {'init hiddens': rs.randn(1, state_size) * param_scale,
             'change':       rs.randn(input_size + state_size + 1, state_size) * param_scale,
-            'predict':      rs.randn(state_size + 1, output_size) * param_scale}
+            'predict':      rs.randn(state_size + 1, output_size) * param_scale,
+            'mu':           init_net_params(param_scale, (state_size, output_size),rs),
+            'sigma':        init_net_params(param_scale, (state_size, output_size),rs)
+            }
 
 def rnn_predict(params, inputs):
     def update_rnn(input, hiddens):
