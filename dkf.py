@@ -96,14 +96,14 @@ def policyDist(params, input, latents):
     p_meanAndstd = map(nn_predict_gaussian, [params['policy']] * input['x'].shape[0], combinedInput)
     return map(diag_gaussian_log_density, input['a'], *zip(*p_meanAndstd))
 
-def dkf_lower_bd(params, input):
-    q_means, q_log_stds = getRNNLatentState(params, input)
+def dkf_lower_bd(params):
+    q_means, q_log_stds = getRNNLatentState(params, inputs)
     latents = map(sample_diag_gaussian, q_means, q_log_stds)
-    p_means, p_log_stds = getGRUTranstionDist(params, input)
+    p_means, p_log_stds = getGRUTranstionDist(params, inputs)
     temporalKL = computeTemporalKL(q_means, q_log_stds, p_means, p_log_stds)
-    likelihoodx = emissionDist(params, input, latents)
-    likelihooda = policyDist(params, input, latents)
-    return (np.mean(sum(likelihooda)) + np.mean(sum(likelihoodx)) - np.mean(sum(temporalKL)))/input['x'].shape[2]
+    likelihoodx = emissionDist(params, inputs, latents)
+    likelihooda = policyDist(params, inputs, latents)
+    return np.mean(sum(likelihooda)) + np.mean(sum(likelihoodx)) - np.mean(sum(temporalKL))
 
 if __name__ == '__main__':
     with open('powerData.pkl') as f:
@@ -123,12 +123,15 @@ if __name__ == '__main__':
     p_means, p_log_stds = getGRUTranstionDist(params, inputs)
     latents = map(sample_diag_gaussian, q_means, q_log_stds)
     temporalKL = computeTemporalKL(q_means, q_log_stds, p_means, p_log_stds)
-    bd = dkf_lower_bd(params, inputs)
-    #likelihoodx = emissionDist(params, input, latents)
-    #pdb.set_trace()
-    likelihooda = policyDist(params, inputs, latents)
+    def training_loss(params, iter):
+        return dkf_lower_bd(params, inputs)/inputs
+
+
     pdb.set_trace()
-    out = emissionDist(params, inputs, latents)
+    training_loss_grad = grad(training_loss())
+    trained_params = adam(training_loss, training_loss_grad, params, step_size=0.1,num_iters=1000)
+
     for item in inputs['x']:
         print(item.shape)
     print(params)
+
