@@ -95,7 +95,6 @@ def visualizeLatentState(X, rs, gen_params, rec_params):
     #yTrain =y[:genTrain.shape[0],:]
     #yTest = y[genTrain.shape[0]:,:]
     #pdb.set_trace
-    pdb.set_trace()
     y = tsne(np.vstack((X,gen*100)))
     plt.figure()
     plt.clf()
@@ -153,12 +152,12 @@ if __name__ == '__main__':
             gen_params, rec_params = combined_params
             bound = np.mean(objective(combined_params, iter))
             print("{:15}|{:20}".format(iter//num_batches, bound))
-            fake_data = generate_from_prior(gen_params, 20, latent_dim, seed)
-        with open(r'vaeTrainTest.csv', 'a') as f:
+        with open(r'dkfTrainTest.csv', 'a') as f:
             btrain = np.mean(trainloss(combined_params, iter))
             btest = np.mean(testloss(combined_params, iter))
             writer = csv.writer(f)
             writer.writerow([btrain, min(btest,100)])
+    #pdb.set_trace()
     # The optimizers provided can optimize lists, tuples, or dicts of parameters.
     optimized_params = adam(objective_grad, combined_init_params, step_size=step_size,
                             num_iters=num_epochs * num_batches, callback=print_perf)

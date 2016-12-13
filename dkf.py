@@ -90,13 +90,12 @@ def emissionDist(params, input, latents):
     return map(diag_gaussian_log_density, input['x'], *zip(*p_meanAndstd))
 
 def policyDist(params, input, latents):
-    print(type(input))
     slices = [slice for slice in input['x']]
     combinedInput = map(np.hstack, zip(slices, latents))
     p_meanAndstd = map(nn_predict_gaussian, [params['policy']] * input['x'].shape[0], combinedInput)
     return map(diag_gaussian_log_density, input['a'], *zip(*p_meanAndstd))
 
-def dkf_lower_bd(params):
+def dkf_lower_bd(params, inputs):
     q_means, q_log_stds = getRNNLatentState(params, inputs)
     latents = map(sample_diag_gaussian, q_means, q_log_stds)
     p_means, p_log_stds = getGRUTranstionDist(params, inputs)
@@ -111,6 +110,7 @@ if __name__ == '__main__':
     inputDim = 101
     seqLen = 100
     numSeq = 5
+    step_size = 0.001
     fakeData = np.random.randn(seqLen,numSeq,inputDim)
     print(fakeData.shape)
     dataDims={'x':80,'u':1,'a':20}
@@ -124,14 +124,14 @@ if __name__ == '__main__':
     latents = map(sample_diag_gaussian, q_means, q_log_stds)
     temporalKL = computeTemporalKL(q_means, q_log_stds, p_means, p_log_stds)
     def training_loss(params, iter):
-        return dkf_lower_bd(params, inputs)/inputs
-
-
+        return -dkf_lower_bd(params, inputs)/inputs['x'].shape[1]
+    def print_perf(params, iter, grad):
+        if iter % 10 == 0:
+            bound = -training_loss(params, iter)
+            print("{:15}|{:20}".format(iter, bound))
+    training_loss_grad = grad(training_loss)
     pdb.set_trace()
-    training_loss_grad = grad(training_loss())
-    trained_params = adam(training_loss, training_loss_grad, params, step_size=0.1,num_iters=1000)
+    trained_params = adam(training_loss_grad, params, step_size=0.001, num_iters=1000, callback=print_perf)
 
-    for item in inputs['x']:
-        print(item.shape)
     print(params)
 
