@@ -44,17 +44,16 @@ def getRNNLatentState(params, data, withSoftPlus=False):
     return zip(*output)
 
 def getGRUTranstionDist(params, data):
-    inputs = np.concatenate([data[k] for k in ['a','u']], axis=2)
+    try:
+        inputs = np.concatenate([data[k] for k in ['a','u']], axis=2)
+    except:
+        inputs = data['a']
     def update_gru(input, hiddens):
         update = sigmoid(concat_and_multiply(params['transion']['update'], input, hiddens))
         reset = sigmoid(concat_and_multiply(params['transion']['reset'], input, hiddens))
         hiddens = (1 - update) * hiddens + update * sigmoid(
             concat_and_multiply(params['transion']['hiddenOut'], input, hiddens * reset))
         return hiddens
-
-    def hiddens_to_output_probs(hiddens):
-        output = concat_and_multiply(params['transion']['predict'], hiddens)
-        return output - logsumexp(output, axis=1, keepdims=True)  # Normalize log-probs.
 
     num_sequences = inputs.shape[1]
     hiddens = np.repeat(params['transion']['init hiddens'], num_sequences, axis=0)
@@ -95,21 +94,21 @@ def policyDist(params, input, latents):
     p_meanAndstd = map(nn_predict_gaussian, [params['policy']] * input['x'].shape[0], combinedInput)
     return map(diag_gaussian_log_density, input['a'], *zip(*p_meanAndstd))
 
-def dkf_lower_bd(params, inputs):
+def dkf_lower_bd(params, inputs, outputs):
     q_means, q_log_stds = getRNNLatentState(params, inputs)
     latents = map(sample_diag_gaussian, q_means, q_log_stds)
     p_means, p_log_stds = getGRUTranstionDist(params, inputs)
     temporalKL = computeTemporalKL(q_means, q_log_stds, p_means, p_log_stds)
-    likelihoodx = emissionDist(params, inputs, latents)
-    likelihooda = policyDist(params, inputs, latents)
+    likelihoodx = emissionDist(params, outputs, latents)
+    likelihooda = policyDist(params, outputs, latents)
     return np.mean(sum(likelihooda)) + np.mean(sum(likelihoodx)) - np.mean(sum(temporalKL))
 
 if __name__ == '__main__':
     with open('powerData.pkl') as f:
         X = pickle.load(f)
     inputDim = 101
-    seqLen = 100
-    numSeq = 5
+    seqLen = 10
+    numSeq = 50
     step_size = 0.001
     fakeData = np.random.randn(seqLen,numSeq,inputDim)
     print(fakeData.shape)
@@ -122,16 +121,15 @@ if __name__ == '__main__':
     #pdb.set_trace()
     p_means, p_log_stds = getGRUTranstionDist(params, inputs)
     latents = map(sample_diag_gaussian, q_means, q_log_stds)
-    temporalKL = computeTemporalKL(q_means, q_log_stds, p_means, p_log_stds)
     def training_loss(params, iter):
-        return -dkf_lower_bd(params, inputs)/inputs['x'].shape[1]
+        return -dkf_lower_bd(params, inputs, inputs)/(inputs['x'].shape[1]*inputs['x'].shape[0])
     def print_perf(params, iter, grad):
         if iter % 10 == 0:
-            bound = -training_loss(params, iter)
+            bound = training_loss(params, iter)
             print("{:15}|{:20}".format(iter, bound))
     training_loss_grad = grad(training_loss)
-    pdb.set_trace()
-    trained_params = adam(training_loss_grad, params, step_size=0.001, num_iters=1000, callback=print_perf)
+    #pdb.set_trace()
+    trained_params = adam(training_loss_grad, params, step_size=0.05, num_iters=1000, callback=print_perf)
 
     print(params)
 
