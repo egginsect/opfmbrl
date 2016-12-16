@@ -95,7 +95,7 @@ def visualizeLatentState(X, rs, gen_params, rec_params):
     #yTrain =y[:genTrain.shape[0],:]
     #yTest = y[genTrain.shape[0]:,:]
     #pdb.set_trace
-    y = tsne(np.vstack((X,gen*100)))
+    y = tsne(np.vstack((X,gen*10)))
     plt.figure()
     plt.clf()
     plt.scatter(y[:gen.shape[0],0],y[:gen.shape[0],1],color='red')
@@ -118,7 +118,7 @@ if __name__ == '__main__':
     # Training parameters
     param_scale = 0.01
     batch_size = 200
-    num_epochs = 2000
+    num_epochs = 500
     step_size = 0.001
 
     init_gen_params = init_net_params(param_scale, gen_layer_sizes)
@@ -152,7 +152,7 @@ if __name__ == '__main__':
             gen_params, rec_params = combined_params
             bound = np.mean(objective(combined_params, iter))
             print("{:15}|{:20}".format(iter//num_batches, bound))
-        with open(r'dkfTrainTest.csv', 'a') as f:
+        with open(r'vaeTrainTest.csv', 'a') as f:
             btrain = np.mean(trainloss(combined_params, iter))
             btest = np.mean(testloss(combined_params, iter))
             writer = csv.writer(f)
